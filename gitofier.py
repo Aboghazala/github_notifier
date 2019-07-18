@@ -205,6 +205,9 @@ class MainWindow:
                 self.update_notifications()
 
     def update_notifications(self):
+        global notifications, notif_num
+        notifications, notif_num = get(notif_url)
+
         if self.isActive and notifications != self.notif:
             self.window.Element('output').Update(notifications)
             self.window.Element('notifications_num').Update(f'Github notifications: {notif_num} unread')
@@ -228,7 +231,6 @@ def main():
     # main loop
     while True:
         if time.time() - timer >= 60:
-            notifications, notif_num = get(notif_url)
             mainWindow.update_notifications()
             timer = time.time()
 
