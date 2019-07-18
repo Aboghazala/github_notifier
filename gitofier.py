@@ -23,7 +23,11 @@ icon1 = os.path.join(path, 'icons', "cat1.png")
 icon2 = os.path.join(path, 'icons', "cat2.png")
 
 user = 'Aboghazala'
-password = 'your_github_token'
+
+# load your authorization token from a file
+with open('token.txt') as f:
+    password = f.read().strip()
+
 base_url = 'https://api.github.com'
 notif_url = "/notifications"
 test_url = '/users/Aboghazala/events'
@@ -69,13 +73,49 @@ def get(url):
 
     for item in body:
         if type(item) == dict:
-            out = f"{item.get('repository', {}).get('name')}\n{item.get('subject', {}).get('title')}\n{'-'*50}\n\n"
+            out = f"{item.get('repository', {}).get('name')}\n{item.get('subject', {}).get('title')}\n{'-' * 50}\n\n"
             buffer += out
         else:
             buffer = header
 
     print(buffer)
     return buffer, num
+
+
+def mark_all_as_read(url):
+    custom_header = ["Time-Zone: Africa/Cairo"]
+    if url.startswith(base_url):
+        pass
+    else:
+        url = base_url + url
+
+    buffer = BytesIO()
+    headerBuffer = BytesIO()
+
+    c = pycurl.Curl()
+    c.setopt(pycurl.URL, url)
+    c.setopt(pycurl.USERPWD, f"{user}:{password}")
+    c.setopt(pycurl.USERAGENT, "curl")
+    c.setopt(pycurl.HTTPHEADER, custom_header)
+    c.setopt(pycurl.MAXREDIRS, 50)
+    c.setopt(pycurl.HTTP_VERSION, pycurl.CURL_HTTP_VERSION_2TLS)
+    c.setopt(pycurl.TCP_KEEPALIVE, 1)
+    c.setopt(pycurl.WRITEHEADER, headerBuffer)
+
+    c.setopt(pycurl.CUSTOMREQUEST, "PUT")
+
+    c.setopt(c.CAINFO, certifi.where())
+    c.setopt(c.WRITEDATA, buffer)
+    c.perform()
+    response = c.getinfo(pycurl.RESPONSE_CODE)
+    c.close()
+
+    header = headerBuffer.getvalue().decode('utf-8')
+    body = buffer.getvalue().decode('utf-8')
+
+    print('send PUT request, response:', response, '\n')
+    print(header, '\n')
+    print(body)
 
 
 class SysTray:
@@ -111,11 +151,13 @@ class SysTray:
             if self.icon != icon1:
                 self.tray.Update(filename=self.icon, tooltip=f'{notif_num} notifications')
 
+
 class MainWindow:
     def __init__(self):
         self.isActive = True
         self.window = None
         self.setup()
+        self.notif = ''
 
     def setup(self):
         window_layout = [[sg.Text(f'GitHub Notifications: {notif_num}', key='notifications_num'),
@@ -124,7 +166,7 @@ class MainWindow:
                          [sg.Multiline(notifications, size=(500, 200), key='output')],
                          [sg.Text('')],
                          [sg.Ok(size=(10, 1)), sg.Button('To GitHub', size=(10, 1), key='open_url'),
-                          sg.T(''), ]]
+                          sg.Button('Mark all as read', size=(20, 1), key='read_all'), ]]
         self.window = sg.Window(f'GitHub Notifier ver.{version}', window_layout, icon=icon1)
         self.window.Finalize()
 
@@ -158,10 +200,15 @@ class MainWindow:
             elif event == 'open_url':
                 webbrowser.open('https://github.com/notifications')
 
+            elif event == 'read_all':
+                mark_all_as_read(notif_url)
+                self.update_notifications()
+
     def update_notifications(self):
-        if self.isActive:
+        if self.isActive and notifications != self.notif:
             self.window.Element('output').Update(notifications)
             self.window.Element('notifications_num').Update(f'Github notifications: {notif_num} unread')
+            self.notif = notifications
 
 
 def cleanup():
