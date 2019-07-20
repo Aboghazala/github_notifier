@@ -1,0 +1,1 @@
+Gitofier is a simple python application to alert you if you receive new github notification 
